@@ -378,17 +378,20 @@ router.get("/appointments/:userId", async (req, res) => {
 });
 router.get("/appointments/:doctorId", async (req, res) => {
   try {
-    const appointment = await Appointment.find({ doctor: req.params.doctorId })
-    .populate("user");
+    const appointment = await Appointment.find({
+      doctor: req.params.doctorId,
+    })
+      .populate("doctor")
+      .populate("user");
 
     if (!appointment) {
       return res
         .status(404)
-        .json({ error: "No appointments found for this user" });
+        .json({ error: "No appointments made for this docoter!" });
     }
     res.json(appointment);
   } catch (error) {
-    res.status(500).json({ message: "Cannot fetch appointment!" });
+    res.status(500).json({ message: "Cannot fetch doctor appointment!" });
   }
 });
 
