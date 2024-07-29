@@ -360,7 +360,7 @@ router.post("/appointments", async (req, res) => {
     res.status(500).json({ mssage: "Cannot make appointment!", error });
   }
 });
-router.get("/appointments/:userId", async (req, res) => {
+router.get("/user-appointments/:userId", async (req, res) => {
   try {
     const appointment = await Appointment.find({ user: req.params.userId })
       .populate("doctor", "firstName lastName phoneNumber")
@@ -371,12 +371,12 @@ router.get("/appointments/:userId", async (req, res) => {
         .status(404)
         .json({ error: "No appointments found for this user" });
     }
-    res.json(appointment);
+    return res.json(appointment);
   } catch (error) {
     res.status(500).json({ message: "Cannot fetch appointment!" });
   }
 });
-router.get("/appointments/:doctorId", async (req, res) => {
+router.get("/doctor-appointments/:doctorId", async (req, res) => {
   try {
     const appointment = await Appointment.find({
       doctor: req.params.doctorId,
