@@ -148,6 +148,24 @@ router.put("/doctors/:id/approve", async (req, res) => {
     res.status(500).json({ message: "Error updating doctor status", error });
   }
 });
+router.put("/approve-appointments/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updatedAppointment = await Appointment.findByIdAndUpdate(
+      id,
+      {
+        status: "Approved",
+      },
+      { new: true }
+    );
+
+    res.status(200).json(updatedAppointment);
+  } catch (error) {
+    res
+      .status(500)
+      .json({ message: "Error updating appointment status", error });
+  }
+});
 
 router.get("/doctors-home/:id", async (req, res) => {
   const { id } = req.params;
@@ -237,6 +255,32 @@ router.post(
     }
   }
 );
+router.post(
+  "/mark-all-doctor-notifications-as-seen",
+  authMiddleware,
+  async (req, res) => {
+    try {
+      const doctor = await Doctor.findOne({ _id: req.body.doctorId });
+      const unseenNotifications = doctor.unseenNotifications;
+      const seenNotifications = doctor.seenNotifications;
+      seenNotifications.push(...unseenNotifications);
+      doctor.unseenNotifications = [];
+      doctor.seenNotifications = seenNotifications;
+      const updatedDoctor = await doctor.save();
+      res.status(200).send({
+        success: true,
+        message: "All notifications marked as seen!",
+        data: updatedDoctor,
+      });
+    } catch (error) {
+      res.status(500).send({
+        message: "Error applying doctor account!",
+        success: false,
+        error,
+      });
+    }
+  }
+);
 router.post("/delete-all-notifications", authMiddleware, async (req, res) => {
   try {
     const user = await User.findOne({ _id: req.body.userId });
@@ -257,6 +301,29 @@ router.post("/delete-all-notifications", authMiddleware, async (req, res) => {
     });
   }
 });
+router.post(
+  "/delete-all-doctor-notifications",
+  authMiddleware,
+  async (req, res) => {
+    try {
+      const doctor = await Doctor.findOne({ _id: req.body.doctorId });
+      doctor.seenNotifications = [];
+      doctor.unseenNotifications = [];
+      const updatedDoctor = await doctor.save();
+      res.status(200).send({
+        success: true,
+        message: "All notifications deleted!",
+        data: updatedDoctor,
+      });
+    } catch (error) {
+      res.status(500).send({
+        message: "Error applying doctor account!",
+        success: false,
+        error,
+      });
+    }
+  }
+);
 router.put("/doctor-profile/:id", async (req, res) => {
   try {
     const { id } = req.params;
@@ -351,6 +418,23 @@ router.post("/appointments", async (req, res) => {
       time,
     });
     const savedAppointment = await appointment.save();
+    const doctorUser = await Doctor.findOne({
+      _id: savedAppointment.doctor?._id,
+    });
+
+    const userInfo = await User.findOne({ _id: savedAppointment.user?._id });
+    console.log("doctor Account", doctorUser, "User Account", userInfo);
+    const unseenNotifications = doctorUser.unseenNotifications;
+    unseenNotifications.push({
+      type: "new-appointment-request",
+      message: `${userInfo.name} just booked an appointment!`,
+      data: {
+        userId: savedAppointment.user?._id,
+        name: userInfo.name,
+      },
+      onClickPath: "/doctor-appointments",
+    });
+    await doctorUser.save();
     res.status(201).json({
       data: savedAppointment,
       success: true,
