@@ -98,7 +98,6 @@ router.post("/get-doctor-info-by-id", authMiddleware, async (req, res) => {
       .send({ message: "Error getting doctor info!!", success: false, error });
   }
 });
-
 router.get("/get-doctor-info", (req, res) => {
   Doctor.find()
     .then((doctors) => res.json(doctors))
@@ -131,7 +130,6 @@ router.get("/get-user/:id", async (req, res) => {
     res.status(500).json({ message: "Error fetching user data", error });
   }
 });
-
 router.put("/doctors/:id/approve", async (req, res) => {
   try {
     const { id } = req.params;
@@ -142,7 +140,19 @@ router.put("/doctors/:id/approve", async (req, res) => {
       },
       { new: true }
     );
-
+    const approvedDoctor = await User.findOne({ _id: updatedDoctor?.userId });
+    const unseenNotifications = approvedDoctor.unseenNotifications;
+    unseenNotifications.push({
+      type: "new-doctor-approved",
+      message: `${approvedDoctor?.name}  your doctor account has been approved!`,
+      data: {
+        doctorId: updatedDoctor?._id,
+        name: updatedDoctor?.name,
+      },
+      onClickPath: "/doctor-home",
+    });
+    await User.findByIdAndUpdate(approvedDoctor._id, { unseenNotifications });
+    // console.log(approvedDoctor);
     res.status(200).json(updatedDoctor);
   } catch (error) {
     res.status(500).json({ message: "Error updating doctor status", error });
@@ -166,7 +176,6 @@ router.put("/approve-appointments/:id", async (req, res) => {
       .json({ message: "Error updating appointment status", error });
   }
 });
-
 router.get("/doctors-home/:id", async (req, res) => {
   const { id } = req.params;
   try {
@@ -182,18 +191,19 @@ router.get("/doctors-home/:id", async (req, res) => {
 router.get("/approved-doctors", async (req, res) => {
   try {
     const approvedDoctors = await Doctor.find({ status: "Approved" });
-    const doctorUser = await User.findOne({ isDoctor: true });
-    const unseenNotifications = doctorUser.unseenNotifications;
-    unseenNotifications.push({
-      type: "new-doctor-approved",
-      message: `${doctorUser.name}  your doctor account has been approved!`,
-      data: {
-        doctorId: doctorUser._id,
-        name: doctorUser.name,
-      },
-      onClickPath: "/doctor-home",
-    });
-    await User.findByIdAndUpdate(doctorUser._id, { unseenNotifications });
+    // const doctorUser = await User.findOne({ isDoctor: true });
+    // const unseenNotifications = doctorUser.unseenNotifications;
+    // unseenNotifications.push({
+    //   type: "new-doctor-approved",
+    //   message: `${doctorUser.name}  your doctor account has been approved!`,
+    //   data: {
+    //     doctorId: doctorUser._id,
+    //     name: doctorUser.name,
+    //   },
+    //   onClickPath: "/doctor-home",
+    // });
+    // // console.log(doctorUser);
+    // await User.findByIdAndUpdate(doctorUser._id, { unseenNotifications });
     res.status(200).json(approvedDoctors);
   } catch (error) {
     res.status(500).json({ message: "Error fetching approved doctors!" });
@@ -227,12 +237,21 @@ router.post("/apply-doctor-account", authMiddleware, async (req, res) => {
     });
   }
 });
-
 router.post(
   "/mark-all-notifications-as-seen",
   authMiddleware,
   async (req, res) => {
     try {
+      //DOCTORS NOTIFICATIONS
+      const doctor = await Doctor.findOne({ _id: req.body.doctorId });
+      const doctorUnseenNotifications = doctor.unseenNotifications;
+      const doctorSeenNotifications = doctor.seenNotifications;
+      doctorSeenNotifications.push(...doctorUnseenNotifications);
+      doctor.unseenNotifications = [];
+      doctor.seenNotifications = doctorSeenNotifications;
+      const updatedDoctor = await doctor.save();
+
+      //NORMAL USER NOTIFICATIONS
       const user = await User.findOne({ _id: req.body.userId });
       const unseenNotifications = user.unseenNotifications;
       const seenNotifications = user.seenNotifications;
@@ -245,6 +264,7 @@ router.post(
         success: true,
         message: "All notifications marked as seen!",
         data: updatedUser,
+        updatedDoctor,
       });
     } catch (error) {
       res.status(500).send({
@@ -274,7 +294,7 @@ router.post(
       });
     } catch (error) {
       res.status(500).send({
-        message: "Error applying doctor account!",
+        message: "Error with doctor notifications!",
         success: false,
         error,
       });
@@ -283,6 +303,12 @@ router.post(
 );
 router.post("/delete-all-notifications", authMiddleware, async (req, res) => {
   try {
+    //DOCTOR NOTIFICATIONS
+    const doctor = await Doctor.findOne({ _id: req.body.doctorId });
+    doctor.seenNotifications = [];
+    doctor.unseenNotifications = [];
+    const updatedDoctor = await doctor.save();
+    //NORMAL USER NOTIFICATIONS
     const user = await User.findOne({ _id: req.body.userId });
     user.seenNotifications = [];
     user.unseenNotifications = [];
@@ -292,6 +318,7 @@ router.post("/delete-all-notifications", authMiddleware, async (req, res) => {
       success: true,
       message: "All notifications deleted!",
       data: updatedUser,
+      updatedDoctor,
     });
   } catch (error) {
     res.status(500).send({
@@ -346,7 +373,6 @@ router.put("/user-profile/:id", async (req, res) => {
     res.status(500).json({ message: "Error updating user profile", error });
   }
 });
-
 // Fetch doctor's available timings
 router.get("/doctors/:id/timings", async (req, res) => {
   const { id } = req.params;
@@ -357,7 +383,6 @@ router.get("/doctors/:id/timings", async (req, res) => {
     res.status(404).json({ message: "Doctor not found" });
   }
 });
-
 // Check doctor availability
 router.post("/doctors/:id/check-availability", async (req, res) => {
   const { startTime, endTime } = req.body;
@@ -404,7 +429,6 @@ router.post("/doctors/:id/check-availability", async (req, res) => {
     return res.status(500).json({ error: "Internal server error" });
   }
 });
-
 // Handle appointment booking
 router.post("/appointments", async (req, res) => {
   const { doctor, user, appointmentId, date, time } = req.body;
@@ -423,7 +447,7 @@ router.post("/appointments", async (req, res) => {
     });
 
     const userInfo = await User.findOne({ _id: savedAppointment.user?._id });
-    console.log("doctor Account", doctorUser, "User Account", userInfo);
+    // console.log("doctor Account", doctorUser, "User Account", userInfo);
     const unseenNotifications = doctorUser.unseenNotifications;
     unseenNotifications.push({
       type: "new-appointment-request",
