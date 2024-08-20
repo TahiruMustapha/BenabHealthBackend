@@ -501,5 +501,17 @@ router.get("/doctor-appointments/:doctorId", async (req, res) => {
     res.status(500).json({ message: "Cannot fetch doctor appointment!" });
   }
 });
+router.delete("/delete-doctor/:id", async (req, res) => {
+  try {
+    const doctorId = req.params.id;
+    const doctor = await Doctor.findByIdAndDelete(doctorId);
+    if (!doctor) {
+      return res.status(404).json({ message: "Doctor not found!" });
+    }
+    res.status(201).json({ message: "Docotr deleted successfully!" });
+  } catch (error) {
+    res.status(500).json({ message: "Couldn't delete docotr!", error });
+  }
+});
 
 module.exports = router;
