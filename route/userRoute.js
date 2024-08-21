@@ -513,5 +513,49 @@ router.delete("/delete-doctor/:id", async (req, res) => {
     res.status(500).json({ message: "Couldn't delete docotr!", error });
   }
 });
+router.delete("/delete-user/:id", async (req, res) => {
+  try {
+    const userId = req.params.id;
+    const user = await User.findByIdAndDelete(userId);
+    if (!user) {
+      return res.status(404).json({ message: "User not found!" });
+    }
+    res.status(201).json({ message: "User deleted successfully!" });
+  } catch (error) {
+    res.status(500).json({ message: "Couldn't delete user!", error });
+  }
+});
+router.put("/appointment/:id/reject", async (req, res) => {
+  try {
+    const appointmentId = req.params.id;
+    const updatedAppointment = await Appointment.findByIdAndUpdate(
+      appointmentId,
+      { status: "Rejected" },
+      { new: true }
+    );
+    if (!updatedAppointment) {
+      return res.status(404).json({ message: "Appointment not found!" });
+    }
+    const appointmentSender = await User.findOne({
+      _id: updatedAppointment.user?._id,
+    });
+    const unseenNotifications = appointmentSender.unseenNotifications;
+    unseenNotifications.push({
+      type: "new-appointment-rejected",
+      message: `${appointmentSender?.name}  your appointment has been rejected!`,
+      data: {
+        appointmentId: updatedAppointment?._id,
+        name: appointmentSender?.name,
+      },
+      onClickPath: "/appointment",
+    });
+    await User.findByIdAndUpdate(appointmentSender._id, {
+      unseenNotifications,
+    });
+    res.status(201).json({ message: "Appointment rejected successfully!" });
+  } catch (error) {
+    res.status(500).json({ message: "Failed to reject appointment!" });
+  }
+});
 
 module.exports = router;
